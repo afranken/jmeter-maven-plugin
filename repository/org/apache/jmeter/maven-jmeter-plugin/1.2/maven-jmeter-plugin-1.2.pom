@@ -162,7 +162,7 @@
     <distributionManagement>
       <repository>
         <id>gh-pages</id>
-        <url>file:///${basedir}/../maven-jmeter-plugin-pages/repository/</url>
+        <url>file:///${basedir}/../jmeter-maven-plugin-pages/repository/</url>
       </repository>
     </distributionManagement>
 
