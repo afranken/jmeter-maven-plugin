@@ -108,6 +108,7 @@ public class JMeterMojo extends AbstractMojo {
      * @parameter
      */
     private File jmeterCustomPropertiesFile;
+
     /**
      * JMeter Properties that override those given in jmeterProps
      *
@@ -199,6 +200,22 @@ public class JMeterMojo extends AbstractMojo {
      * @parameter expression="${jmeter.preserve.includeOrder}" default-value=false
      */
     private boolean jmeterPreserveIncludeOrder;
+
+    /**
+     * Absolute path to JMeter custom (test dependent) saveservice.properties file.
+     * If not configured, the default saveservice.properties bundled by the plugin will be used.
+     *
+     * @parameter
+     */
+    private File saveservicePropertiesFile;
+
+    /**
+     * Absolute path to JMeter custom (test dependent) upgrade.properties file.
+     * If not configured, the default upgrade.properties bundled by the plugin will be used.
+     *
+     * @parameter
+     */
+    private File upgradePropertiesFile;
 
     private File workDir;
     private File jmeterLog;
@@ -381,25 +398,51 @@ public class JMeterMojo extends AbstractMojo {
      */
     @SuppressWarnings("unchecked")
     private void createTemporaryProperties() throws MojoExecutionException {
-        List<File> temporaryPropertyFiles = new ArrayList<File>();
-
         String jmeterTargetDir = File.separator + "target" + File.separator + "jmeter" + File.separator;
-        File saveServiceProps = new File(workDir, "saveservice.properties");
-        System.setProperty("saveservice_properties", jmeterTargetDir + saveServiceProps.getName());
-        temporaryPropertyFiles.add(saveServiceProps);
-        File upgradeProps = new File(workDir, "upgrade.properties");
-        System.setProperty("upgrade_properties", jmeterTargetDir + upgradeProps.getName());
-        temporaryPropertyFiles.add(upgradeProps);
 
-        for (File propertyFile : temporaryPropertyFiles) {
-            try {
-                FileWriter out = new FileWriter(propertyFile);
-                IOUtils.copy(Thread.currentThread().getContextClassLoader().getResourceAsStream(propertyFile.getName()), out);
-                out.flush();
-                out.close();
-            } catch (IOException e) {
-                throw new MojoExecutionException("Could not create temporary property file " + propertyFile.getName() + " in directory " + jmeterTargetDir, e);
+        File saveServiceProps = new File(workDir, "saveservice.properties");
+        if (saveservicePropertiesFile == null) {
+            copyTemporaryPropertyFilesFromClasspath(saveServiceProps, jmeterTargetDir);
+        } else {
+            copyTemporaryPropertyFilesFromConfig(saveservicePropertiesFile, saveServiceProps, jmeterTargetDir);
+        }
+        System.setProperty("saveservice_properties", jmeterTargetDir + saveServiceProps.getName());
+
+        File upgradeProps= new File(workDir, "upgrade.properties");
+        if(upgradePropertiesFile == null) {
+            copyTemporaryPropertyFilesFromClasspath(upgradeProps, jmeterTargetDir);
+        } else {
+            copyTemporaryPropertyFilesFromConfig(upgradePropertiesFile, upgradeProps, jmeterTargetDir);
+        }
+        System.setProperty("upgrade_properties", jmeterTargetDir + upgradeProps.getName());
+    }
+
+    private void copyTemporaryPropertyFilesFromConfig(File propertyFile, File outputFile, String jmeterTargetDir) throws MojoExecutionException {
+        try {
+            FileWriter out = new FileWriter(outputFile);
+            int charCount = IOUtils.copy(new FileReader(propertyFile), out);
+            if(getLog().isDebugEnabled()) {
+                getLog().debug("Created temporary property file " + propertyFile.getName() + " in directory " + jmeterTargetDir);
+                getLog().debug("Wrote "+charCount+" chars to output file.");
             }
+            out.flush();
+            out.close();
+        } catch (IOException e) {
+            throw new MojoExecutionException("Could not create temporary property file " + propertyFile.getName() + " in directory " + jmeterTargetDir, e);
+        }
+    }
+
+    private void copyTemporaryPropertyFilesFromClasspath(File propertyFile, String jmeterTargetDir) throws MojoExecutionException {
+        try {
+            FileWriter out = new FileWriter(propertyFile);
+            IOUtils.copy(Thread.currentThread().getContextClassLoader().getResourceAsStream(propertyFile.getName()), out);
+            if(getLog().isDebugEnabled()) {
+                getLog().debug("Created temporary property file " + propertyFile.getName() + " in directory " + jmeterTargetDir);
+            }
+            out.flush();
+            out.close();
+        } catch (IOException e) {
+            throw new MojoExecutionException("Could not create temporary property file " + propertyFile.getName() + " in directory " + jmeterTargetDir, e);
         }
     }
 
@@ -464,6 +507,7 @@ public class JMeterMojo extends AbstractMojo {
 
             if (getLog().isDebugEnabled()) {
                 getLog().debug("JMeter is called with the following command line arguments: " + args.toString());
+                getLog().debug("JMeter is called with the following System Properties: " + System.getProperties().toString());
             }
 
             // This mess is necessary because JMeter likes to use System.exit.
