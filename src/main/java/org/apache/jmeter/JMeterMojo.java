@@ -138,6 +138,13 @@ public class JMeterMojo extends AbstractMojo {
     private boolean jmeterIgnoreError;
 
     /**
+     * Absolute path to File to log results to.
+     *
+     * @parameter
+     */
+    private String resultFileName;
+
+    /**
      * @parameter expression="${project}"
      * @required
      */
@@ -412,12 +419,19 @@ public class JMeterMojo extends AbstractMojo {
         try {
             getLog().info("Executing test: " + test.getCanonicalPath());
 
-            String resultFileName = reportDir.toString() + File.separator + test.getName().substring(0, test.getName().lastIndexOf(".")) + "-" + fmt.format(new Date()) + ".xml";
+            String currentResultFileName;
+
+            if (resultFileName == null) {
+                currentResultFileName = reportDir.toString() + File.separator + test.getName().substring(0, test.getName().lastIndexOf(".")) + "-" + fmt.format(new Date()) + ".xml";
+            } else {
+                currentResultFileName = resultFileName;
+            }
+
             //delete file if it already exists
-            new File(resultFileName).delete();
+            new File(currentResultFileName).delete();
             List<String> argsTmp = Arrays.asList("-n", "-t",
                     test.getCanonicalPath(),
-                    "-l", resultFileName,
+                    "-l", currentResultFileName,
                     "-p", jmeterDefaultPropertiesFile.toString(),
                     "-d", System.getProperty("user.dir"));
 
