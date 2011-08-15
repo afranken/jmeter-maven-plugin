@@ -2,15 +2,7 @@ package org.apache.jmeter;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.DefaultArtifact;
-import org.apache.maven.artifact.handler.DefaultArtifactHandler;
 import org.apache.maven.artifact.repository.ArtifactRepository;
-import org.apache.maven.artifact.resolver.ArtifactNotFoundException;
-import org.apache.maven.artifact.resolver.ArtifactResolutionException;
-import org.apache.maven.artifact.resolver.ArtifactResolver;
-import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
-import org.apache.maven.artifact.versioning.VersionRange;
-import org.apache.maven.model.Dependency;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -148,17 +140,13 @@ public class JMeterMojo extends AbstractMojo {
     /**
      * @parameter expression="${project}"
      * @required
+     * @readonly
      */
     @SuppressWarnings("unused")
     private MavenProject mavenProject;
 
     /**
-     * @parameter expression="${component.org.apache.maven.artifact.resolver.ArtifactResolver}"
      * @required
-     */
-    private ArtifactResolver artifactResolver;
-
-    /**
      * @parameter expression="${localRepository}"
      */
     private ArtifactRepository localRepository;
@@ -331,7 +319,7 @@ public class JMeterMojo extends AbstractMojo {
         workDir = new File("target" + File.separator + "jmeter");
         workDir.mkdirs();
         createTemporaryProperties();
-        resolveJmeterArtifact();
+        resolveDependencyArtifacts();
 
         jmeterLog = new File(workDir, "jmeter.log");
         try {
@@ -342,49 +330,29 @@ public class JMeterMojo extends AbstractMojo {
     }
 
     /**
-     * Resolve JMeter artifact, set necessary System Property.
+     * Resolve dependency artifacts, set necessary System Property.
+     * All Jars added to "search_paths" will be loaded by JMeters dynamic class loader before starting the test.
+     * For example, CompoundVariables will only work if JMeter jars are added this way.
      *
-     * This mess is necessary because JMeter must load this info from a file.
+     * This mess is necessary because JMeter can only load classes from files added to the SystemProperty.
      * Loading resources from classpath won't work.
      *
      * @throws org.apache.maven.plugin.MojoExecutionException exception
      */
-    private void resolveJmeterArtifact() throws MojoExecutionException {
-        try {
+    private void resolveDependencyArtifacts() throws MojoExecutionException {
+        String searchPaths = "";
 
-            String searchPath = "";
-
-            for (Object oDep : mavenProject.getDependencyArtifacts()) {
-                if (oDep instanceof Dependency) {
-                    Dependency dep = (Dependency) oDep;
-                    if (JMETER_ARTIFACT_GROUPID.equals(dep.getGroupId())) {
-                        //VersionRange needed for Maven 2.x compatibility.
-                        VersionRange versionRange = VersionRange.createFromVersionSpec(dep.getVersion());
-                        Artifact jmeterArtifact = new DefaultArtifact(JMETER_ARTIFACT_GROUPID, dep.getArtifactId(), versionRange, "", "jar", "", new DefaultArtifactHandler());
-                        List remoteArtifactRepositories = mavenProject.getRemoteArtifactRepositories();
-                        artifactResolver.resolve(jmeterArtifact, remoteArtifactRepositories, localRepository);
-                        searchPath += jmeterArtifact.getFile().getAbsolutePath() + ";";
-                    }
-                }
-                if (oDep instanceof Artifact) {
-                    Artifact jmeterArtifact = (Artifact) oDep;
-                    if (JMETER_ARTIFACT_GROUPID.equals(jmeterArtifact.getGroupId())) {
-                        List remoteArtifactRepositories = mavenProject.getRemoteArtifactRepositories();
-                        artifactResolver.resolve(jmeterArtifact, remoteArtifactRepositories, localRepository);
-                        searchPath += jmeterArtifact.getFile().getAbsolutePath() + ";";
-                    }
-                }
+        Set<Artifact> artifacts = mavenProject.getDependencyArtifacts();
+        getLog().debug("Number of dependency artifacts: " + artifacts.size());
+        for (Artifact artifact : artifacts) {
+            getLog().debug("Found dependency artifact. GroupId: " + artifact.getGroupId() + " , ArtifactId: " + artifact.getArtifactId() +" , Version: "+ artifact.getVersion());
+            getLog().debug("Path to artifact: " +localRepository.getBasedir() +"/" +localRepository.pathOf(artifact));
+            if(JMETER_ARTIFACT_GROUPID.equals(artifact.getGroupId())) {
+                searchPaths += localRepository.getBasedir()+'/'+localRepository.pathOf(artifact)+";";
             }
-
-            System.setProperty("search_paths", searchPath);
-
-        } catch (ArtifactResolutionException e) {
-            throw new MojoExecutionException("Could not resolve JMeter artifact. ", e);
-        } catch (ArtifactNotFoundException e) {
-            throw new MojoExecutionException("Could not find JMeter artifact. ", e);
-        } catch (InvalidVersionSpecificationException e) {
-            throw new MojoExecutionException("Invalid version declaration. ", e);
         }
+
+        System.setProperty("search_paths", searchPaths);
     }
 
     /**
