@@ -19,9 +19,15 @@
       </repository>
         <repository>
             <id>Maven JMeter Repo</id>
-            <url>http://yciabaud.github.com/jmeter-maven-plugin/repository</url>
+            <url>http://afranken.github.com/jmeter-maven-plugin/repository/releases</url>
         </repository>
    </repositories>
+
+  <scm>
+    <connection>scm:git:git@github.com:afranken/jmeter-maven-plugin.git</connection>
+    <developerConnection>scm:git:git@github.com:afranken/jmeter-maven-plugin.git</developerConnection>
+    <url>scm:git:git@github.com:afranken/jmeter-maven-plugin.git</url>
+  </scm>
    
    <dependencies>
       <dependency>
